@@ -10,20 +10,18 @@
 ;;;; Chunky scrolling effect.
 
 chunky_scroll_init:
-        LEA video_buffer, A0
-        MOVE.L A0, D0
-        AND.L #$FFFFFF00, D0
+        MOVE.L #video_buffer, D0
+        ANDI.L #$FFFFFF00, D0
         MOVE.L D0, A0
         BSR paint_checkers
 
-        LEA video_buffer, A0
-        MOVE.L A0, D0
+        MOVE.L #video_buffer, D0
         LSR.L #8, D0
         MOVE.W D0, vptr
         MOVE.W D0, vptr_bottom
-        MOVE.B D0, shifter_video_base_high
-        LSR.L #8, D0
         MOVE.B D0, shifter_video_base_mid
+        LSR.W #8, D0
+        MOVE.B D0, shifter_video_base_high
 
         MOVE.W vptr_bottom, vptr_top
         ADD.W #130, vptr_top
@@ -69,14 +67,11 @@ scroll_speed = 64
         BCS .2
         SUB.W vptr_top, D0
         ADD.W vptr_bottom, D0
-.2:     MOVE.W D0, D1
-        MOVE.B D0, shifter_video_base_high
-        LSR.W #8, D0
+.2:     
+        MOVE.B #2, shifter_sync_mode
         MOVE.B D0, shifter_video_base_mid
-        MOVE.W D1, D0
-        MOVE.B D0, $FF8207
         LSR.W #8, D0
-        MOVE.B D0, $FF8205
+        MOVE.B D0, shifter_video_base_high
 
         CMP.B #200, first_line
         BLS .1
@@ -84,7 +79,7 @@ scroll_speed = 64
 .1:
 
         MOVE.W #%000000000000, shifter_palette+0
-        BCLR #5, $FFFA15
+        BCLR #5, mfp_interrupt_mask_b
         CLR.B mfp_timer_b_control		; Disable timer B.
         CMP.B #0, first_line
         BEQ .0
@@ -107,14 +102,11 @@ set_vram_during_timerb:
         MOVE.B #0, mfp_timer_b_control      ; Disable timer B.
         ;;; Start drawing from the top of the buffer.
         MOVE.W vptr_bottom, D0
-        MOVE.B D0, shifter_video_base_high
-        LSR.W #8, D0
         MOVE.B D0, shifter_video_base_mid
-        MOVE.W vptr_bottom, D0
-        CLR.B $FF8209
-        MOVE.B D0, $FF8207
         LSR.W #8, D0
-        MOVE.B D0, $FF8205
+        MOVE.B D0, shifter_video_base_high
+        MOVE.B #0, shifter_sync_mode
+        MOVE.W vptr_bottom, D0
         MOVE.L (SP)+, D0
         BCLR #0, mfp_interrupt_in_service_a ; Ack interrupt?
         RTE

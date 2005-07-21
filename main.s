@@ -49,11 +49,11 @@ super_main:
         MOVE.W #$2700, SR      ; Mask interrupts.
 
         ;;; Get VRAM address.
-        MOVE.B #0, $FF8260     ; Shifter resolution -- low res.
+        MOVE.B #0, shifter_resolution     ; Shifter resolution -- low res.
         MOVEQ #0, D0
-        MOVE.B $FF8201, D0      ; Video RAM address.
+        MOVE.B shifter_video_base_high, D0      ; Video RAM address.
         LSL.W #8, D0
-        MOVE.B $FF8203, D0
+        MOVE.B shifter_video_base_mid, D0
         LSL.L #8, D0
         ; XXX One more byte available on the STe.
 
