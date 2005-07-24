@@ -9,4 +9,5 @@
 ;; ssprites stuff, et cetera) into the current directory to make
 ;; things a little cleaner.
 (do-build "../../atari_st/st-demo.prg"
-  (list "main.s" "ymamoto.s" "chunky-scroll.s"))
+  (list "main.s" "ymamoto.s" "chunky-scroll.s" "t16-3blt.s" "random.s"))
+

@@ -9,7 +9,7 @@
         SECTION TEXT
 
         ;; Things we export.
-        XDEF video_buffer
+        XDEF video_buffer, video_buffer_second_page, video_buffer_end
 
         ;; Symbols we import.
 	XREF ymamoto_init, ymamoto_reset, ymamoto_update
@@ -80,6 +80,7 @@ super_main:
         ; Setup our own vbl handler
         MOVE.L #chunky_scroll_vbl, vbl_vector
 
+        LEA chunky_map, A0
         BSR chunky_scroll_init
 
         MOVE.W #$2300, SR       ; Unmask most interrupts.
@@ -141,6 +142,14 @@ saved_system_res: DS.B 1
         ;; video_buffer's address when we use it.
         ;; XXX eventually all the routines will want to share this.
         DS.B 256
-video_buffer: DS.B 320*208/2
+        ; note: two full screens.
+video_buffer: DS.B 320*200/2
+video_buffer_second_page: DS.B 320*200/2
+video_buffer_end:
+
+        SECTION DATA
+
+chunky_map: INCBIN "chunky.map"
+palscroll_map: INCBIN "palscroll.map"
 
  * vim:syn=asm68k
