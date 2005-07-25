@@ -6,6 +6,7 @@
 
 (defparameter *max-groups* 8)
 (defparameter *bitplanes* 3)
+;; XXX This would be better named *scroll-size*.
 (defparameter *block-size* 8)
 
 
@@ -17,7 +18,7 @@
 				     :width (image-width source)
 				     :height (image-height source)
 				     :plane-count *bitplanes*))
-	 (colors))
+	 (colors (make-array `(,(image-height source) ,*max-groups*))))
 
     (let ((slack (mod (image-height source) *block-size*)))
       (unless (zerop slack)
@@ -30,7 +31,7 @@ boundary of ~A." slack *block-size*)))
     (loop for y from 0 below (image-height source) by *block-size*
 	  do (let ((groups (create-groupings source y)))
 	       (format t "~&~A: required ~A groups~%" y (length groups))
-	       (push (palettize-groupings groups source y) colors)
+	       (palettize-groupings groups colors source y)
 	       (groups->scanlines destination groups y)))
 
     ;; make tilemap
@@ -57,24 +58,37 @@ boundary of ~A." slack *block-size*)))
 	    (write-big-endian-data stream (aref map y x) 16)))
 	(format t "~&colors: ~X" (file-position stream))
 	;; write colors
-	(assert (= (length colors) (* height 2)))
-	(dolist (color-set (reverse colors))
-	  ;; XXX combine flags into color 0.  we don't do this because
-	  ;; we don't have actual flag input yet.  they must be set
-	  ;; manually by someone with lots of free time, like me.
-	  (dotimes (y *block-size*)
-	    (dotimes (i *max-groups*)
-	      (let ((c (color->atari-pal (aref color-set y i))))
-		(write-big-endian-data stream c 16)))))
+	;; XXX combine flags into color 0.  we don't do this because
+	;; we don't have actual flag input yet.  they must be set
+	;; manually by someone with lots of free time, like me.
+	(dotimes (y (image-height source))
+	  (dotimes (i *max-groups*)
+	    (let ((c (color->atari-pal (aref (image-colormap source)
+					     (aref colors y i)))))
+	      (write-big-endian-data stream c 16))))
 	(format t "~&tiles: ~X" (file-position stream))
 	;; write tiles
 	(dotimes (i (length tiles))
 	  (let ((tile (aref tiles i)))
-	    (format t "~&tile ~A:~%" i)
 	    (dotimes (y 16)
-	      (format t "~& ~48,B" (aref tile y))
 	      (write-big-endian-data stream (aref tile y)
-				     (* 16 *bitplanes*)))))))))
+				     (* 16 *bitplanes*)))))
+	(values tiles colors)))))
+
+(defun debug-dump-tile (tile colors base-y scroll)
+  (loop for y from base-y below (+ base-y *block-size*)
+	do (progn
+	     (format t "~&")
+	     (dotimes (x 16)
+	       (let* ((bits (aref tile (- y base-y)))
+		      (v (apply #'logior
+				(mapcar
+				 (lambda (p)
+				   (ash (ldb (byte 1 (+ (- 15 x) (* 16 p)))
+					     bits)
+					(- 2 p)))
+				 '(0 1 2)))))
+		 (format t "~X" (aref colors (+ y scroll) v)))))))
 
 ;;; XXX eventually I'm going to add stuff so that this adds palette
 ;;; switching every eight lines. (or every line, hell.)
@@ -126,17 +140,12 @@ boundary of ~A." slack *block-size*)))
 	    (just-3-bits (color-blue color)))))
 
 
-(defun palettize-groupings (groups image base-y)
-  (let ((colors (make-array `(,*block-size* ,*max-groups*)
-			    :initial-element 0)))
-    (dotimes (y *block-size*)
-      (loop for g from 0 below (length groups)
-	    for group in groups
-	    do (setf (aref colors y g) (aref (image-colormap image)
-					     (image-pixel image
-							  (first group)
-							  (+ base-y y))))))
-    colors))
+(defun palettize-groupings (groups colors image base-y)
+  (dotimes (y *block-size*)
+    (loop for g from 0 below (length groups)
+	  for group in groups
+	  do (setf (aref colors (+ base-y y) g)
+		   (image-pixel image (first group) (+ base-y y))))))
 
 ;; Returns tilemap, tile palette, width and height in tiles.
 (defun make-tilemap (image)
@@ -149,8 +158,7 @@ boundary of ~A." slack *block-size*)))
 	       (do-region-pixels (image pel x y x y 16 16)
 		 ;; Fucking interleaved planes.
 		 (dotimes (p *bitplanes*)
-		   (setf (ldb (byte 1 (+ (- 15 (mod x 16))
-					 (* (- (1- *bitplanes*) p) 16)))
+		   (setf (ldb (byte 1 (+ (- 15 (mod x 16)) (* (- 2 p) 16)))
 			      (aref result (mod y 16)))
 			 (ldb (byte 1 p) pel))))
 	       result)))
@@ -212,7 +220,6 @@ boundary of ~A." slack *block-size*)))
   (loop for y from base-y below (+ base-y *block-size*)
 	do (loop for g from 0 below (length groups)
 		 for group in groups
-		 do (dolist (x group)
-		      (setf (image-pixel image x y) g)))))
+		 do (dolist (x group) (setf (image-pixel image x y) g)))))
 
 

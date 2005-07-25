@@ -21,6 +21,8 @@
         ;; main.s
         XREF video_buffer, video_buffer_second_page, video_buffer_end
         XREF main
+        ;; initutil.s
+        XREF iu_IKBD_reset
         ;; t16-3blt.s
         XREF sss_t163_blit, sss_t163_clean_blit
         ;; font.s
@@ -82,6 +84,20 @@ chunky_scroll_init:
         MOVE.W #600, screen_ctr
         MOVE.W #128, scroll_speed
 
+        MOVE.L #chunky_scroll_vbl, vbl_vector
+        MOVE.W #$2300, SR       ; Unmask most interrupts.
+
+        ;;; Wait for key press.
+.5:     MOVE.B kbd_acia_data, D0
+        CMP.B #$39, D0
+        BEQ .exit
+
+        ;; do something fun here?
+        BRA .5
+
+.exit:  MOVE.W #$2700, SR       ; Mask interrupts.
+        CLR.B kbd_acia_data     ; Clear keypress.
+        BSR iu_IKBD_reset
         MOVEM.L (SP)+, D0-D4/A0-A2
         RTS
 

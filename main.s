@@ -17,7 +17,7 @@
         XREF chunky_scroll_init, chunky_scroll_vbl
         XREF palette_scroll_init, palette_scroll_vbl, palette_scroll_stop
         ;; from initutil.s
-        XREF iu_mouseOn, iu_mouseOff
+        XREF iu_mouseOn, iu_mouseOff, iu_IKBD_reset
 
         ;; Vectors and so forth.
         INCLUDE "st-constants.s"
@@ -70,8 +70,9 @@ super_main:
         LEA old_vectors, A0
         MOVE.L hbl_vector, (A0)+
         MOVE.L vbl_vector, (A0)+
+        MOVE.L kbd_vector, (A0)+
         MOVE.L timer_b_vector, (A0)+
-        MOVE.B $FFFA07, (A0)+	; Timers.
+        MOVE.B $FFFA07, (A0)+	; MFP stuff.
         MOVE.B $FFFA09, (A0)+
         MOVE.B $FFFA15, (A0)+
         MOVE.B $FFFA17, (A0)+
@@ -83,28 +84,10 @@ super_main:
         ;; First screen.
         LEA palscroll_map, A0
         BSR palette_scroll_init
-        MOVE.L #palette_scroll_vbl, vbl_vector
-
-        MOVE.W #$2300, SR       ; Unmask most interrupts.
-
-        ;;; Wait for key press.
-        MOVE.W #7, -(SP)
-        TRAP #1
-        ADDQ.L #2, SP
-
-        MOVE.W #$2700, SR       ; Mask interrupts.
-        BSR palette_scroll_stop
 
         ;; Second screen.
         LEA chunky_map, A0
         BSR chunky_scroll_init
-        MOVE.L #chunky_scroll_vbl, vbl_vector
-        MOVE.W #$2300, SR       ; Unmask most interrupts.
-
-        ;;; Wait for key press.
-        MOVE.W #7, -(SP)
-        TRAP #1
-        ADDQ.L #2, SP
 
         ;;; Begin shutting things down.
         MOVE.W #$2700, SR       ; Mask interrupts.
@@ -113,6 +96,7 @@ super_main:
         LEA old_vectors, A0
         MOVE.L (A0)+, hbl_vector
         MOVE.L (A0)+, vbl_vector
+        MOVE.L (A0)+, kbd_vector
         MOVE.L (A0)+, timer_b_vector
         MOVE.B (A0)+, $FFFA07   ; Timers.
         MOVE.B (A0)+, $FFFA09
@@ -140,6 +124,7 @@ super_main:
         BSR ymamoto_reset       ; Mute YM.
 
         ;;; Restore ACIA state.
+        BSR iu_IKBD_reset
         BSR iu_mouseOn
         MOVEM.L (SP)+, D0-D7/A0-A1
         RTS
@@ -147,7 +132,7 @@ super_main:
 	SECTION BSS
 
 vram_address: DS.L 1
-old_vectors: DS.L 5
+old_vectors: DS.L 6
 saved_system_palette: DS.B 32
 saved_system_res: DS.B 1
         EVEN

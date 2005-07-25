@@ -16,7 +16,7 @@ _regSynchro = $FF820A			; refresh rate and sync mode
 
 	SECTION	TEXT
 
-        XDEF iu_mouseOn, iu_mouseOff
+        XDEF iu_mouseOn, iu_mouseOff, iu_IKBD_reset
 
 iu_setSuper:
 
@@ -69,7 +69,7 @@ iu_setUser:
 iu_suEnd:
 	RTS
 
-iu_IKDB_reset:
+iu_IKBD_reset:
 
 * Reset the Keyboard processor to default
 *
