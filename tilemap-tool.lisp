@@ -51,7 +51,9 @@ boundary of ~A." slack *block-size*)))
 	(format t "~&map: ~X~%" (file-position stream))
 	;; write map
 	(dotimes (y height)
+	  (format t "~&  ")
 	  (dotimes (x width)
+	    (format t "~2X" (aref map y x))
 	    (write-big-endian-data stream (aref map y x) 16)))
 	(format t "~&colors: ~X" (file-position stream))
 	;; write colors
@@ -68,7 +70,9 @@ boundary of ~A." slack *block-size*)))
 	;; write tiles
 	(dotimes (i (length tiles))
 	  (let ((tile (aref tiles i)))
+	    (format t "~&tile ~A:~%" i)
 	    (dotimes (y 16)
+	      (format t "~& ~48,B" (aref tile y))
 	      (write-big-endian-data stream (aref tile y)
 				     (* 16 *bitplanes*)))))))))
 
@@ -123,7 +127,8 @@ boundary of ~A." slack *block-size*)))
 
 
 (defun palettize-groupings (groups image base-y)
-  (let ((colors (make-array `(,*block-size* ,*max-groups*))))
+  (let ((colors (make-array `(,*block-size* ,*max-groups*)
+			    :initial-element 0)))
     (dotimes (y *block-size*)
       (loop for g from 0 below (length groups)
 	    for group in groups

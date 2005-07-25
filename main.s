@@ -10,10 +10,14 @@
 
         ;; Things we export.
         XDEF video_buffer, video_buffer_second_page, video_buffer_end
+        XDEF main
 
         ;; Symbols we import.
 	XREF ymamoto_init, ymamoto_reset, ymamoto_update
         XREF chunky_scroll_init, chunky_scroll_vbl
+        XREF palette_scroll_init, palette_scroll_vbl, palette_scroll_stop
+        ;; from initutil.s
+        XREF iu_mouseOn, iu_mouseOff
 
         ;; Vectors and so forth.
         INCLUDE "st-constants.s"
@@ -31,10 +35,7 @@ super_main:
         MOVEM.L D0-D7/A0-A1, -(SP)
 
         ;;; Disable mouse.
-;.0:     BTST #1, kbd_acia_control	; ACIA Tx buffer full?
-;        BEQ .0
-;        MOVE.B #$12, kbd_acia_data	; I *hate* mice.
-;        MOVE.B #0, kbd_acia_control
+        BSR iu_mouseOff
 
         ;;; XXX setup music playback
 
@@ -67,6 +68,7 @@ super_main:
 
         ; Save TOS VBL vector, interrupt settings.
         LEA old_vectors, A0
+        MOVE.L hbl_vector, (A0)+
         MOVE.L vbl_vector, (A0)+
         MOVE.L timer_b_vector, (A0)+
         MOVE.B $FFFA07, (A0)+	; Timers.
@@ -77,12 +79,26 @@ super_main:
         MOVE.B $FFFA1b, (A0)+
         MOVE.B $FFFA1f, (A0)+
         MOVE.B $FFFA21, (A0)+
-        ; Setup our own vbl handler
-        MOVE.L #chunky_scroll_vbl, vbl_vector
 
+        ;; First screen.
+        LEA palscroll_map, A0
+        BSR palette_scroll_init
+        MOVE.L #palette_scroll_vbl, vbl_vector
+
+        MOVE.W #$2300, SR       ; Unmask most interrupts.
+
+        ;;; Wait for key press.
+        MOVE.W #7, -(SP)
+        TRAP #1
+        ADDQ.L #2, SP
+
+        MOVE.W #$2700, SR       ; Mask interrupts.
+        BSR palette_scroll_stop
+
+        ;; Second screen.
         LEA chunky_map, A0
         BSR chunky_scroll_init
-
+        MOVE.L #chunky_scroll_vbl, vbl_vector
         MOVE.W #$2300, SR       ; Unmask most interrupts.
 
         ;;; Wait for key press.
@@ -93,20 +109,9 @@ super_main:
         ;;; Begin shutting things down.
         MOVE.W #$2700, SR       ; Mask interrupts.
 
-        ;;; Restore vram address
-        MOVE.L vram_address, D0
-        LSR.L #8, D0
-        MOVE.B D0, $FF8203
-        LSR.L #8, D0
-        MOVE.B D0, $FF8201
-
-        ;;; Restore resolution and palette.
-        MOVE.B saved_system_res, $FF8260   ; Restore shifter res.
-        MOVEM.L saved_system_palette, D0-D7 ; Restore palette.
-        MOVEM.L D0-D7, $FF8240
-
         ;;; Restore TOS VBL, timer B vectors.
         LEA old_vectors, A0
+        MOVE.L (A0)+, hbl_vector
         MOVE.L (A0)+, vbl_vector
         MOVE.L (A0)+, timer_b_vector
         MOVE.B (A0)+, $FFFA07   ; Timers.
@@ -118,29 +123,38 @@ super_main:
         MOVE.B (A0)+, $FFFA1f
         MOVE.B (A0)+, $FFFA21
 
+        ;;; Restore vram address
+        MOVE.L vram_address, D0
+        LSR.L #8, D0
+        MOVE.B D0, shifter_video_base_mid
+        LSR.L #8, D0
+        MOVE.B D0, shifter_video_base_high
+
+        ;;; Restore resolution and palette.
+        MOVE.B saved_system_res, shifter_resolution   ; Restore shifter res.
+        MOVEM.L saved_system_palette, D0-D7 ; Restore palette.
+        MOVEM.L D0-D7, shifter_palette
+
         MOVE.W #$2300, SR       ; Unmask interrupts.
 
         BSR ymamoto_reset       ; Mute YM.
 
-        ;;; Restore ACIA.
-;        MOVE.B #%10010110, kbd_acia_control ; Interrupts on, 8N1, clock/64.
-;.2:     BTST #1, kbd_acia_control        ; ACIA Tx buffer full?
-;        BEQ .2
-;        MOVE.B #8, kbd_acia_data      ; I suppose we'd better restore the mouse.
+        ;;; Restore ACIA state.
+        BSR iu_mouseOn
         MOVEM.L (SP)+, D0-D7/A0-A1
         RTS
 
 	SECTION BSS
 
 vram_address: DS.L 1
-old_vectors: DS.L 4
+old_vectors: DS.L 5
 saved_system_palette: DS.B 32
 saved_system_res: DS.B 1
         EVEN
 
         ;; We align by putting this pad here, then masking
-        ;; video_buffer's address when we use it.
-        ;; XXX eventually all the routines will want to share this.
+        ;; video_buffer's address when we use it.  (because we can't
+        ;; guarantee we will be loaded with a reasonable alignment).
         DS.B 256
         ; note: two full screens.
 video_buffer: DS.B 320*200/2

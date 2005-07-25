@@ -1,22 +1,20 @@
  *
- * Chunky scrolling.
+ * Palette scrolling.
  * Julian Squires / 2005
  *
- * It's important to note that while this uses the width parameter in
- * several cases, it's actually pretty much being ignored, and things
- * will break if width is less than 20 tiles.
+ * See also chunky-scroll.s and tilemap-tool.lisp.  Bugs in the basic
+ * scrolling code are probably also bugs in chunky-scroll.s.
  *
- * Also, if I were actually wise, I would have just changed my tilemap
- * tool to output map data in reverse order, you know.
+ * TODO: Ideally, we can find a nice API for sharing chunky and palette
+ * scroll functionality without duplicating code.
  *
- * Provides: chunky_scroll_init, chunky_scroll_vbl
+ * Provides: palette_scroll_init, palette_scroll_vbl
 
         SECTION TEXT
 
-
         INCLUDE "st-constants.s"
 
-        XDEF chunky_scroll_init, chunky_scroll_vbl
+        XDEF palette_scroll_init, palette_scroll_vbl, palette_scroll_stop
 
         ;; main.s
         XREF video_buffer, video_buffer_second_page, video_buffer_end
@@ -26,10 +24,8 @@
         ;; font.s
         XREF plot_debug_dword
 
-;;;; Chunky scrolling effect.
-
         ;; Takes the map data in A0.
-chunky_scroll_init:
+palette_scroll_init:
         MOVEM.L D0-D4/A0-A2, -(SP)
         ;; Initialize pointers to things.
         ;; map_header
@@ -43,15 +39,10 @@ chunky_scroll_init:
         MULU.W map_height, D0
         ADD.L D0, A0
         MOVE.L A0, map_colors
-        ;; Since this currently uses static colors, let's just set the
-        ;; palette now.  Ideally, I'd like to update this so that the
-        ;; map generator adds info on where to change background colors in
-        ;; the map, to support more vivid backgrounds.
-        MOVE.W #16-1, D0
-        MOVE.L #shifter_palette, A1
-.0:     MOVE.W (A0)+, (A1)+
-        DBF D0, .0
-
+        MOVEQ #0, D0
+        MOVE.W map_height, D0
+        LSL.L #8, D0                ; skip ahead by 2*height*16.
+        ADD.L D0, A0
         MOVE.L A0, map_tiles
 
         ;; Setup base video pointers.
@@ -73,6 +64,11 @@ chunky_scroll_init:
 
         MOVE.W #0, scroll_ctr
 
+        ;MOVE.L map_tiles, colorptr_base  ; end of colors
+        ;SUB.L #200*16, colorptr_base     ; one screen back.
+        MOVE.L map_colors, colorptr_base
+        ADD.L #7*16, colorptr_base
+
         MOVE.L map_data, mapptr     ; will cause wrap-around.
         REPT 13
         BSR draw_new_tiles
@@ -80,35 +76,19 @@ chunky_scroll_init:
 
         ;; Spend 600 frames before changing scroll speed.
         MOVE.W #600, screen_ctr
-        MOVE.W #128, scroll_speed
+        MOVE.W #32, scroll_speed
 
         MOVEM.L (SP)+, D0-D4/A0-A2
         RTS
 
-;; map pointer in A2, stomps on lots of registers.
-draw_line:
-        MOVEQ #0, D0
-        MOVE.W drawptr, D0
-        LSL.L #8, D0
-        MOVE.L D0, A1
-        REPT 20                     ; twenty tiles to draw.
-        MOVEQ #0, D0
-        MOVE.W (A2)+, D0            ; fetch tile index.
-        ;; Get tile data.
-        MOVE.L map_tiles, A0
-        ;; Multiply by 96 to get tile position.
-        LSL.L #5, D0                ; *32
-        MOVE.L D0, D1
-        ADD.L D0, D0                ; *64
-        ADD.L D1, D0                ; x*32 + x*64 = x*96
-        ADD.L D0, A0
-        ;; Draw tile.
-        BSR sss_t163_blit     ; XXX change back to "normal" blit
-                                    ; once debugged
-        ;; Next tilewidth to the right.
-        SUBA.L #160*16-8, A1
-        ENDR
+palette_scroll_stop:
+        CLR.B mfp_timer_b_control		; Disable timer B.
+        MOVE.L #disable_hbl, hbl_vector
         RTS
+
+disable_hbl:
+        MOVE.W #$2300, SR
+        RTE
 
  * Draws a line of tiles and advances (or rather regresses) the map
  * pointer and draw pointer.
@@ -133,8 +113,28 @@ draw_new_tiles:
 .2:     MOVE.L D2, mapptr
 
         ;; Actually draw the line.
+        MOVEQ #0, D0
+        MOVE.W drawptr, D0
+        LSL.L #8, D0
+        MOVE.L D0, A1
         MOVE.L D2, A2
-        BRA draw_line               ; note tail call optimization.
+        REPT 20                     ; twenty tiles to draw.
+        MOVEQ #0, D0
+        MOVE.W (A2)+, D0            ; fetch tile index.
+        ;; Get tile data.
+        MOVE.L map_tiles, A0
+        ;; Multiply by 96 to get tile position.
+        LSL.L #5, D0                ; *32
+        MOVE.L D0, D1
+        ADD.L D0, D0                ; *64
+        ADD.L D1, D0                ; x*32 + x*64 = x*96
+        ADD.L D0, A0
+        ;; Draw tile.
+        BSR sss_t163_blit
+        ;; Next tilewidth to the right.
+        SUBA.L #160*16-8, A1
+        ENDR
+        RTS
 
         ;: If it wrapped around, we want to fix up some values and /not/
         ;; draw a line this time, so we stay in sync with the vptr.
@@ -150,12 +150,12 @@ draw_new_tiles:
         RTS
 
 
- * Chunky scrolling VBL handler.
-chunky_scroll_vbl:
+ * Palette scrolling VBL handler.
+palette_scroll_vbl:
         MOVEM.L D0-A6, -(SP)
         CMP.W #0, screen_ctr
         BNE .4
-        MOVE.W #1024, scroll_speed
+        MOVE.W #256, scroll_speed
 .4:     SUB.W #1, screen_ctr
 
         ;; do "physics"
@@ -163,8 +163,19 @@ chunky_scroll_vbl:
         ADD.W scroll_speed, D0 ; 8.8 fixed point.
         MOVE.W D0, scroll_ctr
         CMP.W #8<<8, D0
-        BCS .no_scrolling
+        BCS .no_chunky_scrolling
         SUB.W #8<<8, scroll_ctr
+
+        BRA .no_chunky_scrolling
+
+        ;; Update color pointer.
+        MOVE.L colorptr_base, D0
+        SUB.L #8*16, D0
+        CMP.L map_colors, D0
+        BCC .3
+        SUB.L map_colors, D0
+        ADD.L map_tiles, D0
+.3:     MOVE.L D0, colorptr_base
 
         ;; Reposition vram.
         MOVE.W vptr, D0
@@ -183,30 +194,44 @@ chunky_scroll_vbl:
         ;; have to flip pages.
         BSR draw_new_tiles
 
-.no_scrolling:
+.no_chunky_scrolling:
+        MOVE.L colorptr_base, colorptr
+        ;MOVEQ #0, D0
+        ;ADD.L #7*16, colorptr
+        MOVEQ #0, D0
+        MOVE.W scroll_ctr, D0
+        LSR.L #8, D0
+        LSL.L #4, D0
+        SUB.L D0, colorptr
+
+        ;; Setup timer B.
+        BCLR #5, mfp_interrupt_mask_b
+        CLR.B mfp_timer_b_control		; Disable timer B.
+        MOVE.B #1, mfp_timer_b_data
+        MOVE.L #set_vram_during_timerb, timer_b_vector
+        MOVE.B #8, mfp_timer_b_control	; Enable timer B (event mode).
+        BSET #3, mfp_vector_register
+        BSET #0, mfp_interrupt_enable_a	; intA enable timer B.
+        BSET #0, mfp_interrupt_mask_a	; intA mask, unmask timer B.
+
         ;; XXX Update music.
         MOVEM.L (SP)+, D0-A6
         RTE
 
 
- * Simple test pattern.  Takes video pointer in A0.
- * XXX More convoluted than it needs to be.
-paint_checkers:
-        MOVEQ #192/16-1, D2
-.0:     MOVEQ #10-1, D0
-.1:     MOVEQ #20-1, D1
-.2:     MOVE.L #$FF000000, (A0)+
-        CLR.L (A0)+
-        DBF D1, .2
-        DBF D0, .1
-        MOVEQ #6-1, D0
-.3:     MOVEQ #20-1, D1
-.4:     MOVE.L #$000000FF, (A0)+
-        CLR.L (A0)+
-        DBF D1, .4
-        DBF D0, .3
-        DBF D2, .0
-        RTS
+set_vram_during_timerb:
+        MOVEM.L D0-D3/A0, -(SP)
+        MOVE.L colorptr, A0
+        MOVEM.L (A0)+, D0-D3
+        MOVEM.L D0-D3, shifter_palette
+        ;ADD.L #16, colorptr
+        CMP.L map_tiles, A0
+        BCS .1
+        MOVE.L map_colors, A0
+.1:     MOVE.L A0, colorptr
+        MOVEM.L (SP)+, D0-D3/A0
+        BCLR #0, mfp_interrupt_in_service_a ; Ack interrupt?
+        RTE
 
 
         SECTION BSS
@@ -223,6 +248,9 @@ map_colors: DS.L 1
 map_tiles: DS.L 1
 map_width: DS.W 1
 map_height: DS.W 1
+ * Color buffer where palette changes are stored.
+colorptr: DS.L 1
+colorptr_base: DS.L 1
  * Scrolling counter, "event" counter, and pointer into map data.
 mapptr: DS.L 1
 scroll_ctr: DS.W 1
