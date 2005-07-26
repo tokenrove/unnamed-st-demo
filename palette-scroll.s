@@ -12,9 +12,9 @@
 
         SECTION TEXT
 
-        INCLUDE "st-constants.s"
+        INCLUDE "st-constants.inc"
 
-        XDEF palette_scroll_init
+        XDEF palette_scroll_init, palette_scroll_main
 
         ;; main.s
         XREF video_buffer, video_buffer_second_page, video_buffer_end
@@ -77,7 +77,12 @@ palette_scroll_init:
         ;; Spend 600 frames before changing scroll speed.
         MOVE.W #600, screen_ctr
         MOVE.W #32, scroll_speed
+        MOVEM.L (SP)+, D0-D4/A0-A2
+        MOVE.L colorptr_base, A0        ; palette to fade to
+        RTS
 
+palette_scroll_main:
+        MOVEM.L D0-D4/A0-A2, -(SP)
         MOVE.L #palette_scroll_vbl, vbl_vector
         MOVE.L #just_rte, kbd_vector
         MOVE.B #$00, kbd_acia_control

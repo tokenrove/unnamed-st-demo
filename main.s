@@ -14,13 +14,15 @@
 
         ;; Symbols we import.
 	XREF ymamoto_init, ymamoto_reset, ymamoto_update
-        XREF chunky_scroll_init, chunky_scroll_vbl
-        XREF palette_scroll_init, palette_scroll_vbl, palette_scroll_stop
+        XREF fade_in, fade_out
+        XREF chunky_scroll_init, chunky_scroll_main
+        XREF palette_scroll_init, palette_scroll_main
+        XREF rotobomb_init, rotobomb_main
         ;; from initutil.s
         XREF iu_mouseOn, iu_mouseOff, iu_IKBD_reset
 
         ;; Vectors and so forth.
-        INCLUDE "st-constants.s"
+        INCLUDE "st-constants.inc"
 
  * Main entry point.
 main:	MOVE.L #super_main, -(SP)
@@ -81,13 +83,36 @@ super_main:
         MOVE.B $FFFA1f, (A0)+
         MOVE.B $FFFA21, (A0)+
 
-        ;; First screen.
+        MOVE.W #5, D0
+        BSR fade_out
+
+        ;; rotobomb
+        BSR rotobomb_init
+        MOVE.W #3, D0
+        BSR fade_in
+        BSR rotobomb_main
+        MOVE.W #3, D0
+        BSR fade_out
+
+        ;; palette scroller
         LEA palscroll_map, A0
         BSR palette_scroll_init
+        MOVE.W #3, D0
+        BSR fade_in
+        BSR palette_scroll_main
+        MOVE.W #3, D0
+        BSR fade_out
 
-        ;; Second screen.
+        ;; fast chunky scroller
         LEA chunky_map, A0
         BSR chunky_scroll_init
+        MOVE.W #3, D0
+        BSR fade_in
+        BSR chunky_scroll_main
+        MOVE.W #6, D0
+        BSR fade_out
+
+        ;; XXX end credits
 
         ;;; Begin shutting things down.
         MOVE.W #$2700, SR       ; Mask interrupts.

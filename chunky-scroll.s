@@ -9,14 +9,14 @@
  * Also, if I were actually wise, I would have just changed my tilemap
  * tool to output map data in reverse order, you know.
  *
- * Provides: chunky_scroll_init, chunky_scroll_vbl
+ * Provides: chunky_scroll_init, chunky_scroll_main
 
         SECTION TEXT
 
 
-        INCLUDE "st-constants.s"
+        INCLUDE "st-constants.inc"
 
-        XDEF chunky_scroll_init, chunky_scroll_vbl
+        XDEF chunky_scroll_init, chunky_scroll_main
 
         ;; main.s
         XREF video_buffer, video_buffer_second_page, video_buffer_end
@@ -83,7 +83,12 @@ chunky_scroll_init:
         ;; Spend 600 frames before changing scroll speed.
         MOVE.W #600, screen_ctr
         MOVE.W #128, scroll_speed
+        MOVEM.L (SP)+, D0-D4/A0-A2
+        MOVE.L map_colors, A0       ; palette to fade to
+        RTS
 
+chunky_scroll_main:
+        MOVEM.L D0-D4/A0-A2, -(SP)
         MOVE.L #chunky_scroll_vbl, vbl_vector
         MOVE.W #$2300, SR       ; Unmask most interrupts.
 
