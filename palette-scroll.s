@@ -25,6 +25,8 @@
         XREF sss_t163_blit, sss_t163_clean_blit
         ;; font.s
         XREF plot_debug_dword
+        ;; ymamoto.s
+        XREF ymamoto_update
 
         ;; Takes the map data in A0.
 palette_scroll_init:
@@ -76,7 +78,7 @@ palette_scroll_init:
 
         ;; Spend 600 frames before changing scroll speed.
         MOVE.W #600, screen_ctr
-        MOVE.W #32, scroll_speed
+        MOVE.W #8, scroll_speed
         MOVEM.L (SP)+, D0-D4/A0-A2
         MOVE.L colorptr_base, A0        ; palette to fade to
         RTS
@@ -84,11 +86,6 @@ palette_scroll_init:
 palette_scroll_main:
         MOVEM.L D0-D4/A0-A2, -(SP)
         MOVE.L #palette_scroll_vbl, vbl_vector
-        MOVE.L #just_rte, kbd_vector
-        MOVE.B #$00, kbd_acia_control
-        MOVE.B #1, mfp_interrupt_enable_a
-        MOVE.B #1, mfp_interrupt_mask_a
-        CLR.B mfp_interrupt_enable_b
 
         MOVE.W #$2300, SR       ; Unmask most interrupts.
 
@@ -111,7 +108,6 @@ palette_scroll_main:
 .exit:  MOVE.W #$2700, SR       ; Mask interrupts.
         CLR.B kbd_acia_data     ; Clear keypress.
         CLR.B mfp_timer_b_control		; Disable timer B.
-        BSR iu_IKBD_reset
         MOVEM.L (SP)+, D0-D4/A0-A2
         RTS
 
@@ -180,7 +176,7 @@ palette_scroll_vbl:
         MOVEM.L D0-A2, -(SP)
         CMP.W #0, screen_ctr
         BNE .4
-        MOVE.W #256, scroll_speed
+        MOVE.W #32, scroll_speed
 .4:     SUB.W #1, screen_ctr
 
         ;; do "physics"
@@ -251,7 +247,8 @@ palette_scroll_vbl:
         BSET #0, mfp_interrupt_mask_a	; intA mask, unmask timer B.
         MOVE.B #8, mfp_timer_b_control	; Enable timer B (event mode).
 
-        ;; XXX Update music.
+        ;; Update music.
+        BSR ymamoto_update
         MOVEM.L (SP)+, D0-A2
         MOVE.W #$2300, SR
         RTE

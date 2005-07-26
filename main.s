@@ -39,8 +39,6 @@ super_main:
         ;;; Disable mouse.
         BSR iu_mouseOff
 
-        ;;; XXX setup music playback
-
         ;;; Save system palette.
         MOVEM.L shifter_palette, D0-D7
         MOVEM.L D0-D7, saved_system_palette
@@ -83,15 +81,21 @@ super_main:
         MOVE.B $FFFA1f, (A0)+
         MOVE.B $FFFA21, (A0)+
 
+        ;;; setup music playback
+        LEA tune, A0
+        MOVEQ #1, D0
+        BSR ymamoto_init
+
         MOVE.W #5, D0
         BSR fade_out
 
-        ;; rotobomb
-        BSR rotobomb_init
+        ;; fast chunky scroller
+        LEA chunky_map, A0
+        BSR chunky_scroll_init
         MOVE.W #3, D0
         BSR fade_in
-        BSR rotobomb_main
-        MOVE.W #3, D0
+        BSR chunky_scroll_main
+        MOVE.W #6, D0
         BSR fade_out
 
         ;; palette scroller
@@ -103,13 +107,17 @@ super_main:
         MOVE.W #3, D0
         BSR fade_out
 
-        ;; fast chunky scroller
-        LEA chunky_map, A0
-        BSR chunky_scroll_init
+        ;; rotobomb
+        MOVE.L vram_address, D0
+        LSR.L #8, D0
+        MOVE.B D0, shifter_video_base_mid
+        LSR.L #8, D0
+        MOVE.B D0, shifter_video_base_high
+        BSR rotobomb_init
         MOVE.W #3, D0
         BSR fade_in
-        BSR chunky_scroll_main
-        MOVE.W #6, D0
+        BSR rotobomb_main
+        MOVE.W #3, D0
         BSR fade_out
 
         ;; XXX end credits
@@ -175,5 +183,6 @@ video_buffer_end:
 
 chunky_map: INCBIN "chunky.map"
 palscroll_map: INCBIN "palscroll.map"
+tune: INCBIN "tune.bin"
 
  * vim:syn=asm68k

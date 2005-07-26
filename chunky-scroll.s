@@ -27,6 +27,8 @@
         XREF sss_t163_blit, sss_t163_clean_blit
         ;; font.s
         XREF plot_debug_dword
+        ;; ymamoto.s
+        XREF ymamoto_update
 
 ;;;; Chunky scrolling effect.
 
@@ -81,7 +83,7 @@ chunky_scroll_init:
         ENDR
 
         ;; Spend 600 frames before changing scroll speed.
-        MOVE.W #600, screen_ctr
+        MOVE.W #200, screen_ctr
         MOVE.W #128, scroll_speed
         MOVEM.L (SP)+, D0-D4/A0-A2
         MOVE.L map_colors, A0       ; palette to fade to
@@ -102,7 +104,6 @@ chunky_scroll_main:
 
 .exit:  MOVE.W #$2700, SR       ; Mask interrupts.
         CLR.B kbd_acia_data     ; Clear keypress.
-        BSR iu_IKBD_reset
         MOVEM.L (SP)+, D0-D4/A0-A2
         RTS
 
@@ -205,7 +206,8 @@ chunky_scroll_vbl:
         BSR draw_new_tiles
 
 .no_scrolling:
-        ;; XXX Update music.
+        ;; Update music.
+        BSR ymamoto_update
         MOVEM.L (SP)+, D0-A6
         RTE
 

@@ -9,6 +9,8 @@
 
         XDEF fade_in, fade_out
 
+        XREF ymamoto_update
+
         INCLUDE "st-constants.inc"
 
  * A0 = palette to fade in to
@@ -104,6 +106,7 @@ fade_out:
 
 fade_vbl:
         SUB.B #1, fade_ctr
+        BSR ymamoto_update
         RTE
 
         SECTION BSS

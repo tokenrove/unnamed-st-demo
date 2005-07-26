@@ -1,0 +1,43 @@
+
+#HEADER
+
+replay "YMamoto"
+composer "tokenrove"
+copyright "Julian Squires / 2005"
+
+#MACROS
+
+@a1 = { 0 | 12 -12 }
+
+@~1 = { delay 8 speed 2 depth 3 }
+@~2 = { delay 8 speed 2 depth 4 }
+
+#MUSIC
+
+ABC t120 !loop
+
+ABC v13
+
+AB @~1
+
+A q6 @a1 o4 [a1 a1 f1 e1]2
+B q6 @a1 o5 c2..<b8> e2d c2..<a8> b1 
+B o4 c2..<b8> e2d c2..<a8> b1
+
+C q4 %eo o2
+C [a8aga>e<a>d<a]2 f>f<f>f<f>cgc< eedece16de8g
+C o2
+C [a8aga>e<a>d<a]2 %euf>f<f>f<f>cgc< %eoeedece16de8g
+
+AB r1 r1 r1 r1
+C q6 a8ga>cracd e<e>e<edefe ff4.f8arg aecebdeg
+
+A r4 v12 @a0 @~2 o5q8 a8agg+ab>c2. d8e f4.c<b4 a8>cecegag
+B @v10 a2>c< gb ag eb
+C [a8aga>e<a>d<a]2 f>f<f>f<f>cgc< eedece16de8g
+
+A a1
+B o4 a1
+C a8araarag
+
+
